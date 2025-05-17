@@ -1,0 +1,12 @@
+{
+  "name": "passionpay",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "npx tailwindcss -i ./public/input.css -o ./public/style.css --watch",
+    "build": "npx tailwindcss -i ./public/input.css -o ./public/style.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.3"
+  }
+}
