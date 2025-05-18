@@ -8,5 +8,8 @@
   },
   "devDependencies": {
     "tailwindcss": "^3.4.3"
+  },
+  "dependencies": {
+    "mongodb": "^6.16.0"
   }
 }
