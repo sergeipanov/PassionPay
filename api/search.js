@@ -1,5 +1,15 @@
+import 'dotenv/config'; // Loads environment variables from .env
+
 // Vercel Serverless Function (Node.js)
 // /api/search.js
+
+// For demonstration: Log the MONGODB_URI (remove in production/before committing sensitive logs)
+if (process.env.NODE_ENV !== 'production') {
+    console.log('MONGODB_URI (from .env):', process.env.MONGODB_URI ? 'Loaded' : 'Not Loaded');
+    // For local testing only, you might temporarily log the actual URI to confirm it's correct.
+    // NEVER log the full URI in code that gets committed.
+    // console.log(process.env.MONGODB_URI); 
+}
 
 export default function handler(request, response) {
     const { query } = request.body || request.query; // HTMX might send as query params or body
