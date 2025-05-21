@@ -37,3 +37,7 @@ Thumbs.db
 
 # Ignore raw data files
 data/raw/
+
+# Google Cloud Credentials
+.gcp/
+.vercel
