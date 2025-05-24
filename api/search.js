@@ -1,6 +1,6 @@
 /**
- * PassionPay Search API - Version 1.3
- * Enhanced with job description display and Read more/less functionality
+ * PassionPay Search API - Version 1.4
+ * Enhanced with EdX course recommendations and YouTube video integration
  * Features:
  * - Dual search strategy (LinkedIn jobs via description embeddings, Tech jobs via title embeddings)
  * - Combined results with relevance filtering
@@ -458,6 +458,113 @@ function formatResults(results) {
   return html;
 }
 
+// Function to generate EdX courses HTML directly
+function generateEdXPlaceholder(query) {
+  try {
+    // Basic check to ensure we have a valid query
+    if (!query || typeof query !== 'string' || query.trim() === '') {
+      return '';
+    }
+    
+    // Extract relevant keywords for course search
+    const keywords = query.toLowerCase()
+      .replace(/and/g, ' ')
+      .split(' ')
+      .filter(word => word.length > 2) // Only words longer than 2 chars
+      .slice(0, 3) // Take top 3 keywords
+      .join(' ');
+    
+    // Check if query is finance-related
+    const isFinanceQuery = keywords.includes('stock') || 
+                          keywords.includes('financ') || 
+                          keywords.includes('invest') || 
+                          keywords.includes('trading') || 
+                          keywords.includes('money') || 
+                          keywords.includes('accounting') || 
+                          (keywords.includes('number') && (keywords.includes('work') || keywords.includes('love')));
+    
+    // If finance query, return a finance course directly
+    if (isFinanceQuery) {
+      return generateDirectCourseHTML(query, {
+        title: 'Finance for Everyone: Smart Tools for Decision-Making',
+        provider: 'University of Michigan',
+        type: 'Course',
+        description: 'Learn how to think clearly about important financial decisions and improve your financial literacy.',
+        startDate: 'Self-paced'
+      });
+    }
+    
+    // For technology queries
+    const isTechQuery = keywords.includes('software') || 
+                       keywords.includes('develop') || 
+                       keywords.includes('code') || 
+                       keywords.includes('program') || 
+                       keywords.includes('tech') || 
+                       keywords.includes('computer');
+    
+    if (isTechQuery) {
+      return generateDirectCourseHTML(query, {
+        title: 'Computer Science Essentials for Software Development',
+        provider: 'University of Pennsylvania',
+        type: 'Professional Certificate Program',
+        description: 'Learn the essential components of software development, including algorithms, data structures, and object-oriented design.',
+        startDate: 'Self-paced'
+      });
+    }
+    
+    // For general searches, return a data analytics course (generally useful in many fields)
+    return generateDirectCourseHTML(query, {
+      title: 'Data Science and Analytics Essentials',
+      provider: 'IBM',
+      type: 'Professional Certificate',
+      description: 'Learn fundamental data science and analytics skills applicable to many career paths and industries.',
+      startDate: 'Self-paced'
+    });
+  } catch (error) {
+    console.error('Error generating EdX placeholder:', error);
+    return ''; // Return empty string if error
+  }
+}
+
+/**
+ * Generate direct HTML for a course without making API calls
+ * @param {string} query - User's search query
+ * @param {Object} course - Course object with title, provider, etc.
+ * @returns {string} - HTML for course display
+ */
+function generateDirectCourseHTML(query, course) {
+  return `
+    <div class="mb-6 bg-white rounded-md shadow-md overflow-hidden max-w-2xl mx-auto">
+      <div class="p-3 bg-indigo-50 border-b border-indigo-100">
+        <h3 class="text-md font-semibold text-indigo-700">Recommended Courses: ${query}</h3>
+        <p class="text-xs text-gray-600">Build skills for this career with professional certificates</p>
+      </div>
+      
+      <div class="edx-course bg-white border-gray-200 overflow-hidden">
+        <div class="p-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+          <div>
+            <span class="text-xs font-medium px-2 py-1 rounded-full ${course.type.toLowerCase().includes('program') ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}">${course.type}</span>
+            <span class="text-xs text-gray-500 ml-2">${course.provider}</span>
+          </div>
+        </div>
+        <div class="p-3">
+          <h3 class="font-medium text-gray-900 mb-1">${course.title}</h3>
+          <p class="text-xs text-gray-600 mb-2">${course.description}</p>
+          <div class="mt-2 flex justify-between items-center">
+            <span class="text-xs text-gray-500">Format: Self-paced</span>
+            <a href="https://www.edx.org/search?q=${encodeURIComponent(course.title)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-3 py-1 border border-indigo-300 text-xs leading-4 font-medium rounded-md text-indigo-700 bg-indigo-50 hover:bg-indigo-100">
+              Find on EdX
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 // Function to generate YouTube video HTML directly in the search results
 // Instead of making a separate API call, we'll add a placeholder for client-side loading
 function generateYouTubePlaceholder(query) {
@@ -626,9 +733,20 @@ export default async function handler(req, res) {
       }
     }
     
+    // Add EdX courses recommendations
+    let edxHtml = '';
+    if (finalResults.length > 0) {
+      try {
+        edxHtml = generateEdXPlaceholder(query);
+      } catch (edxError) {
+        console.error('Error adding EdX courses placeholder:', edxError);
+        // Continue without EdX recommendations
+      }
+    }
+    
     // Format results as HTML and include the query input
-    // Place YouTube video after the query input but before the job results
-    let htmlResponse = queryInput + youtubeHtml + formatResults(finalResults);
+    // Order: Query input -> YouTube video -> EdX courses -> Job results
+    let htmlResponse = queryInput + youtubeHtml + edxHtml + formatResults(finalResults);
     
     res.setHeader('Content-Type', 'text/html');
     res.status(200).send(htmlResponse);

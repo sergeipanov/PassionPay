@@ -7,12 +7,239 @@
 import 'dotenv/config';
 import { google } from 'googleapis';
 
+/**
+ * Corrects common typos in user queries
+ * @param {string} query - Original user query
+ * @returns {string} - Corrected query
+ */
+function fixTypos(query) {
+  if (!query) return '';
+  
+  // Convert to lowercase for consistent processing
+  let fixed = query.toLowerCase();
+  
+  // Common typo corrections
+  const typoMap = {
+    'wiht': 'with',
+    'workign': 'working',
+    'programing': 'programming',
+    'develper': 'developer',
+    'enginer': 'engineer',
+    'finace': 'finance',
+    'finacial': 'financial',
+    'analyts': 'analyst',
+    'analyist': 'analyst',
+    'buisness': 'business',
+    'markting': 'marketing',
+    'managment': 'management',
+    'desing': 'design',
+    'helthcare': 'healthcare'
+  };
+  
+  // Replace typos
+  for (const [typo, correction] of Object.entries(typoMap)) {
+    fixed = fixed.replace(new RegExp(typo, 'g'), correction);
+  }
+  
+  return fixed;
+}
+
+/**
+ * Maps user queries to standardized professional fields
+ * @param {string} query - Normalized user query
+ * @returns {string} - Professional field for video search
+ */
+function mapQueryToProfessionalField(query) {
+  // Category mappings for better search results
+  const categoryMap = {
+    // Finance related terms
+    'finance': 'financial analyst',
+    'financial': 'financial analyst',
+    'stock': 'stock trader',
+    'stocks': 'stock trader',
+    'investing': 'investment analyst',
+    'investment': 'investment banker',
+    'banking': 'banker',
+    'trading': 'trader',
+    'accounting': 'accountant',
+    'numbers': 'financial analyst',
+    'money': 'financial advisor',
+    
+    // Tech related terms
+    'coding': 'software developer',
+    'code': 'programmer',
+    'programming': 'software developer',
+    'software': 'software engineer',
+    'web': 'web developer',
+    'data': 'data scientist',
+    'ai': 'AI engineer',
+    'machine learning': 'machine learning engineer',
+    
+    // Healthcare related terms
+    'healthcare': 'healthcare administrator',
+    'medical': 'medical professional',
+    'doctor': 'physician',
+    'medicine': 'doctor',
+    'nursing': 'nurse',
+    'health': 'healthcare professional',
+    
+    // Business related terms
+    'business': 'business professional',
+    'marketing': 'marketing manager',
+    'sales': 'sales professional',
+    'management': 'manager',
+    'leadership': 'executive',
+    
+    // Creative fields
+    'design': 'designer',
+    'art': 'artist',
+    'creative': 'creative professional',
+    'writing': 'writer',
+    'content': 'content creator'
+  };
+  
+  // Special cases for combined terms
+  if ((query.includes('number') || query.includes('numbers')) && 
+      (query.includes('stock') || query.includes('stocks'))) {
+    return 'financial analyst';
+  }
+  
+  // Check if any category keywords are in the query
+  for (const [keyword, profession] of Object.entries(categoryMap)) {
+    if (query.includes(keyword)) {
+      return profession;
+    }
+  }
+  
+  // If no match, extract meaningful words (filter out common words)
+  const commonWords = ['love', 'like', 'enjoy', 'want', 'with', 'and', 'the', 'for', 'that', 'have', 'this', 'work', 'working'];
+  const words = query.split(' ');
+  const meaningfulWords = words.filter(word => 
+    word.length > 3 && !commonWords.includes(word)
+  );
+  
+  if (meaningfulWords.length > 0) {
+    return meaningfulWords.join(' ') + ' professional';
+  }
+  
+  // Default fallback
+  return query + ' professional';
+}
+
 // YouTube API configuration
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
 const youtube = google.youtube({
   version: 'v3',
   auth: YOUTUBE_API_KEY
 });
+
+// Career mapping for better YouTube results
+const CAREER_KEYWORD_MAPPING = {
+  // Finance and investment related keywords
+  'finance': 'financial analyst',
+  'investment': 'investment banker',
+  'investing': 'investment analyst',
+  'stock': 'stock trader',
+  'stocks': 'stock trader',
+  'trading': 'stock trader',
+  'numbers': 'financial analyst',
+  'accounting': 'accountant',
+  'money': 'financial advisor',
+  'banking': 'banker',
+  'wealth': 'wealth manager',
+  'fund': 'fund manager',
+  'hedge': 'hedge fund analyst',
+  
+  // Technology related keywords
+  'coding': 'software developer',
+  'programming': 'programmer',
+  'software': 'software engineer',
+  'tech': 'technology professional',
+  'data': 'data scientist',
+  'ai': 'ai engineer',
+  'machine learning': 'machine learning engineer',
+  
+  // Healthcare related keywords
+  'medicine': 'doctor',
+  'healthcare': 'healthcare professional',
+  'medical': 'medical professional',
+  'health': 'healthcare worker',
+  'doctor': 'physician',
+  'nurse': 'nursing professional',
+  
+  // Creative fields
+  'design': 'designer',
+  'art': 'artist',
+  'writing': 'writer',
+  'create': 'creative professional',
+  'film': 'filmmaker',
+  'video': 'videographer',
+  'music': 'musician',
+  
+  // Business related
+  'business': 'business professional',
+  'marketing': 'marketing professional',
+  'sales': 'sales professional',
+  'entrepreneur': 'entrepreneur',
+  'startup': 'startup founder'
+};
+
+/**
+ * Analyzes a query to determine the most relevant career field
+ * Works with misspelled and conversational queries
+ * @param {string} query - User search query
+ * @returns {string} - Professional field for YouTube search
+ */
+function determineCareerField(query) {
+  // Clean up and normalize the query
+  const normalizedQuery = query.toLowerCase()
+    .replace(/wiht/g, 'with')  // Common typo
+    .replace(/workign/g, 'working') // Common typo
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  // Special case for number-related careers
+  if (
+    (normalizedQuery.includes('number') && normalizedQuery.includes('stock')) ||
+    (normalizedQuery.includes('numbers') && normalizedQuery.includes('stocks'))
+  ) {
+    return 'financial analyst';
+  }
+  
+  // Check for finance-related terms
+  if (
+    normalizedQuery.includes('stocks') ||
+    normalizedQuery.includes('finance') ||
+    normalizedQuery.includes('investment') ||
+    normalizedQuery.includes('financial') ||
+    normalizedQuery.includes('trading') ||
+    normalizedQuery.includes('money') ||
+    normalizedQuery.includes('banking')
+  ) {
+    return 'financial analyst';
+  }
+  
+  // Look for career keywords in the mapping
+  for (const [keyword, profession] of Object.entries(CAREER_KEYWORD_MAPPING)) {
+    if (normalizedQuery.includes(keyword)) {
+      return profession;
+    }
+  }
+  
+  // If we couldn't determine a specific career, extract meaningful words
+  const words = normalizedQuery.split(' ');
+  const meaningfulWords = words.filter(word => 
+    word.length > 3 && 
+    !['love', 'like', 'want', 'with', 'and', 'the', 'for', 'that', 'have', 'this'].includes(word)
+  );
+  
+  if (meaningfulWords.length > 0) {
+    return meaningfulWords.join(' ');
+  }
+  
+  // Default fallback
+  return query;
+}
 
 // Handler for YouTube search
 export default async function handler(req, res) {
@@ -29,8 +256,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Construct a search query based on the user's passion
-    const searchQuery = `day in the life of ${query} professional`;
+    // Clean up common typos and normalize the query
+    const normalizedQuery = fixTypos(query);
+    
+    // Map the query to a relevant professional field
+    const professionalField = mapQueryToProfessionalField(normalizedQuery);
+    
+    // Construct a standardized search query
+    const searchQuery = `day in the life of ${professionalField}`;
     
     console.log(`Searching YouTube for: "${searchQuery}"`);
     
