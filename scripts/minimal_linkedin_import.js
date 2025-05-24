@@ -1,3 +1,12 @@
+/**
+ * PassionPay LinkedIn Import Script - Version 1.2
+ * Enhanced to import LinkedIn jobs with job description embeddings
+ * Features:
+ * - Imports LinkedIn job data to 'all_jobs' collection
+ * - Generates job description embeddings for vector search
+ * - Works with api/search.js to enable semantic search on job descriptions
+ */
+
 require('dotenv').config();
 const { MongoClient } = require('mongodb');
 const fs = require('fs');
@@ -12,7 +21,7 @@ const { helpers } = aiplatform;
 // MongoDB Configuration
 const MONGODB_URI = process.env.MONGODB_URI;
 const MONGO_DATABASE_NAME = process.env.MONGO_DATABASE_NAME || 'passion_pay_db';
-const MONGO_COLLECTION_NAME = 'job_salaries'; // Use the same collection as your existing search implementation
+const MONGO_COLLECTION_NAME = 'all_jobs'; // Changed to 'all_jobs' for LinkedIn data
 
 // File paths
 const DATA_DIR = path.join(__dirname, '..', 'data', 'raw');
