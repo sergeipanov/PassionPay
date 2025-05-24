@@ -458,6 +458,52 @@ function formatResults(results) {
   return html;
 }
 
+// Function to generate YouTube video HTML directly in the search results
+// Instead of making a separate API call, we'll add a placeholder for client-side loading
+function generateYouTubePlaceholder(query) {
+  try {
+    // Basic check to ensure we have a valid query
+    if (!query || typeof query !== 'string' || query.trim() === '') {
+      return '';
+    }
+    
+    // Extract relevant keywords for video search
+    const keywords = query.toLowerCase()
+      .replace(/and/g, ' ')
+      .split(' ')
+      .filter(word => word.length > 2) // Only words longer than 2 chars
+      .slice(0, 3) // Take top 3 keywords
+      .join(' ');
+    
+    // Create a placeholder that will load the YouTube video via HTMX
+    return `
+      <div class="mb-6 bg-white rounded-md shadow-md overflow-hidden max-w-2xl mx-auto">
+        <div class="p-3 bg-blue-50 border-b border-blue-100">
+          <h3 class="text-md font-semibold text-blue-700">Day in the Life: ${query}</h3>
+          <p class="text-xs text-gray-600">See what it's like to work in this field</p>
+        </div>
+        <div id="youtube-video-container" class="p-2" 
+             hx-get="/api/youtube-search?query=${encodeURIComponent(keywords)}" 
+             hx-trigger="load"
+             hx-indicator=".htmx-indicator">
+          <div class="flex items-center justify-center p-4">
+            <div class="htmx-indicator">
+              <svg class="animate-spin h-6 w-6 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <p class="mt-2 text-xs text-gray-500">Loading video...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (error) {
+    console.error('Error generating YouTube placeholder:', error);
+    return ''; // Return empty string if error
+  }
+}
+
 // Main handler function
 export default async function handler(req, res) {
   console.log("Search endpoint hit:", req.query);
@@ -566,13 +612,26 @@ export default async function handler(req, res) {
       return getSalary(b) - getSalary(a);
     });
     
-    // Add hidden input for current query
+    // Add a hidden input to store the current query for filter buttons
     const queryInput = `<input type="hidden" name="current-query" value="${query}">`;
     
-    // Return HTML response
-    const html = queryInput + formatResults(finalResults);
+    // Try to fetch a relevant YouTube video if we have at least 1 result
+    let youtubeHtml = '';
+    if (finalResults.length > 0) {
+      try {
+        youtubeHtml = generateYouTubePlaceholder(query);
+      } catch (youtubeError) {
+        console.error('Error adding YouTube video placeholder:', youtubeError);
+        // Continue without YouTube video
+      }
+    }
+    
+    // Format results as HTML and include the query input
+    // Place YouTube video after the query input but before the job results
+    let htmlResponse = queryInput + youtubeHtml + formatResults(finalResults);
+    
     res.setHeader('Content-Type', 'text/html');
-    res.status(200).send(html);
+    res.status(200).send(htmlResponse);
   } 
   catch (error) {
     console.error('Search error:', error);
