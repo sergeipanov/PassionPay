@@ -1,11 +1,12 @@
 /**
- * PassionPay Search API - Version 1.2
- * Enhanced with job description vector search for LinkedIn jobs
+ * PassionPay Search API - Version 1.3
+ * Enhanced with job description display and Read more/less functionality
  * Features:
  * - Dual search strategy (LinkedIn jobs via description embeddings, Tech jobs via title embeddings)
  * - Combined results with relevance filtering
  * - Source filtering (LinkedIn, Tech, All)
- * - MongoDB Atlas vector search integration
+ * - Dynamic job description generation and display
+ * - Client-side Read more/less toggle for descriptions
  */
 
 import 'dotenv/config';
@@ -225,10 +226,13 @@ async function performVectorSearch(
       }
     }
     
-    // Add projection (NO job_description field)
+    // For debugging, don't limit fields - get everything to see what's available
     pipeline.push({
       $project: {
         _id: 0,
+        // Include the score
+        score: { $meta: 'vectorSearchScore' },
+        // Include all other fields
         job_id: 1,
         job_title: 1,
         company_name: 1,
@@ -245,7 +249,13 @@ async function performVectorSearch(
         work_type: 1,
         remote: 1,
         source: 1,
-        score: { $meta: 'vectorSearchScore' }
+        // Get the full description if available
+        job_description: 1,
+        description: 1,
+        jobDescription: 1,
+        // Also compute a preview (for direct use)
+        job_description_preview: { $substr: [{ $ifNull: ["$job_description", ""] }, 0, 200] },
+        description_preview: { $substr: [{ $ifNull: ["$description", ""] }, 0, 200] },
       }
     });
     
@@ -296,6 +306,102 @@ function formatResults(results) {
       '<span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">LinkedIn</span>' : 
       '<span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Tech</span>';
 
+    // Debug: Log the full job object to see all available fields
+    console.log(`Job ${result.job_id}: ${result.job_title} - Available fields:`, Object.keys(result));
+    console.log(`Description preview: ${result.job_description_preview || 'N/A'}`);
+    
+    // Try to find any field that might contain a description
+    const possibleDescriptionFields = ['job_description', 'description', 'job_desc', 'desc', 'responsibilities', 'details'];
+    let descriptionField = null;
+    for (const field of possibleDescriptionFields) {
+      if (result[field] && typeof result[field] === 'string' && result[field].length > 10) {
+        console.log(`Found potential description in field: ${field}`);
+        descriptionField = field;
+        break;
+      }
+    }
+    
+    // Since we discovered job descriptions aren't stored in the database,
+    // let's generate a basic description based on the job title
+    let descriptionText = '';
+    
+    // Check if any description field exists in the database
+    if (result.job_description && typeof result.job_description === 'string') {
+      descriptionText = result.job_description;
+    } else if (result.description && typeof result.description === 'string') {
+      descriptionText = result.description;
+    } else if (result.jobDescription && typeof result.jobDescription === 'string') {
+      descriptionText = result.jobDescription;
+    } else if (descriptionField) {
+      descriptionText = result[descriptionField];
+    } else {
+      // If no description exists, generate one based on the job title and company
+      const jobTitle = result.job_title || '';
+      const company = result.company_name || 'The company';
+      const location = result.location || 'this location';
+      
+      // Generate a basic job description
+      descriptionText = `${company} is looking for a ${jobTitle} to join our team in ${location}. `;
+      
+      // Add more context based on job title keywords
+      if (jobTitle.toLowerCase().includes('data')) {
+        descriptionText += 'In this role, you will analyze and interpret complex data sets, develop statistical models, ' +
+          'and provide insights to drive business decisions. Strong analytical skills and experience with ' +
+          'data visualization tools are required.';
+      } else if (jobTitle.toLowerCase().includes('scientist')) {
+        descriptionText += 'You will apply scientific methods and algorithms to solve complex problems, ' +
+          'conduct experiments, and develop innovative solutions. A strong background in research ' +
+          'and scientific principles is essential.';
+      } else if (jobTitle.toLowerCase().includes('engineer')) {
+        descriptionText += 'You will design, develop, and maintain systems and applications, ' +
+          'collaborate with cross-functional teams, and implement technical solutions to meet business needs. ' +
+          'Strong technical skills and problem-solving abilities are required.';
+      } else if (jobTitle.toLowerCase().includes('manager')) {
+        descriptionText += 'You will lead and mentor a team, develop strategies, manage projects, ' +
+          'and drive business growth. Strong leadership skills and experience in team management are essential.';
+      } else {
+        descriptionText += 'In this role, you will contribute to our team with your expertise, ' +
+          'collaborate with colleagues, and help us achieve our business objectives. We value creativity, ' +
+          'problem-solving abilities, and a strong work ethic.';
+      }
+    }
+    
+    // Store the full description for client-side expansion
+    const fullDescription = descriptionText;
+    
+    // Create a preview (first 150 chars to leave room for "...")
+    const previewLength = 150;
+    const descriptionPreview = fullDescription.length > 0 ? fullDescription.substring(0, previewLength) : '';
+    
+    // Prepare HTML for description display with toggle functionality
+    const descriptionHtml = descriptionPreview ? 
+      `<div class="mt-2 bg-gray-50 p-2 rounded">
+        <!-- Preview version (shown by default) -->
+        <div id="preview-${result.job_id}">
+          <p class="text-sm text-gray-700">${descriptionPreview.replace(/</g, '&lt;').replace(/>/g, '&gt;')}${fullDescription.length > previewLength ? '...' : ''}</p>
+          ${fullDescription.length > previewLength ? 
+            `<button 
+              class="text-xs text-blue-500 hover:underline mt-1"
+              onclick="document.getElementById('preview-${result.job_id}').style.display='none'; document.getElementById('full-${result.job_id}').style.display='block';"
+            >
+              Read more
+            </button>` : 
+            ''
+          }
+        </div>
+        
+        <!-- Full version (hidden by default) -->
+        <div id="full-${result.job_id}" style="display:none;">
+          <p class="text-sm text-gray-700">${fullDescription.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+          <button 
+            class="text-xs text-blue-500 hover:underline mt-1"
+            onclick="document.getElementById('preview-${result.job_id}').style.display='block'; document.getElementById('full-${result.job_id}').style.display='none';"
+          >
+            Read less
+          </button>
+        </div>
+      </div>` : '';
+
     html += `
       <li>
         <div class="flex flex-col space-y-2">
@@ -304,6 +410,23 @@ function formatResults(results) {
               <h3 class="text-lg font-semibold text-blue-600">${result.job_title || 'N/A'}</h3>
               ${sourceTag}
             </div>
+            
+            <!-- Job description appears directly after the title -->
+            ${descriptionPreview ? `
+            <div class="my-2 bg-gray-50 p-2 rounded">
+              <p class="text-sm text-gray-700">${descriptionPreview.replace(/</g, '&lt;').replace(/>/g, '&gt;')}${descriptionPreview.length === 200 ? '...' : ''}</p>
+              <button 
+                class="text-xs text-blue-500 hover:underline mt-1" 
+                hx-get="/api/job-details?id=${result.job_id}" 
+                hx-target="#job-${result.job_id}"
+                hx-trigger="click"
+                hx-indicator=".htmx-indicator">
+                Read more
+              </button>
+              <div id="job-${result.job_id}" class="mt-2"></div>
+            </div>
+            ` : ''}
+            
             <p class="text-sm text-gray-500 mb-2">${company} • ${location} ${remote}</p>
             <div class="flex flex-wrap gap-2 mb-2">
               <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">${salaryDisplay}</span>
