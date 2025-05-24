@@ -442,18 +442,7 @@ function formatResults(results) {
   
   html += '</ul>';
 
-  // Add filter controls
-  html = `
-  <div class="mb-4 bg-white p-4 rounded-md shadow-sm border border-gray-200">
-    <h3 class="text-sm font-medium text-gray-700 mb-2">Filter Results:</h3>
-    <div class="flex flex-wrap gap-2">
-      <button class="px-3 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100" hx-get="/api/search?query=" hx-include="[name='current-query']" hx-target="#search-results" hx-indicator=".htmx-indicator">All Jobs</button>
-      <button class="px-3 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100" hx-get="/api/search?query=" hx-include="[name='current-query']" hx-vals='{"source":"linkedin"}' hx-target="#search-results" hx-indicator=".htmx-indicator">LinkedIn Jobs</button>
-      <button class="px-3 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100" hx-get="/api/search?query=" hx-include="[name='current-query']" hx-vals='{"remote":"true"}' hx-target="#search-results" hx-indicator=".htmx-indicator">Remote Only</button>
-      <button class="px-3 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100" hx-get="/api/search?query=" hx-include="[name='current-query']" hx-vals='{"minSalary":"100000"}' hx-target="#search-results" hx-indicator=".htmx-indicator">$100k+</button>
-    </div>
-  </div>
-  ${html}`;
+  // No filter controls - just return the results list
 
   return html;
 }
