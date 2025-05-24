@@ -324,20 +324,14 @@ export default async function handler(req, res) {
       embedHtml: `<iframe width="100%" height="225" src="https://www.youtube.com/embed/${bestVideo.id}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`
     };
     
-    // Return a nice HTML snippet
+    // Return just the video content without the outer container
     const html = `
-      <div class="mt-6 bg-white rounded-md shadow-md overflow-hidden">
-        <div class="p-4 bg-blue-50 border-b border-blue-100">
-          <h3 class="text-lg font-semibold text-blue-700">Day in the Life: ${query}</h3>
-          <p class="text-sm text-gray-600">Watch this video to see what it's like to work in this field</p>
-        </div>
-        <div class="video-container aspect-w-16 aspect-h-9">
-          ${videoInfo.embedHtml}
-        </div>
-        <div class="p-4">
-          <h4 class="font-medium text-gray-800">${videoInfo.title}</h4>
-          <p class="text-xs text-gray-500 mt-1">Channel: ${videoInfo.channelTitle} • ${Number(videoInfo.viewCount).toLocaleString()} views</p>
-        </div>
+      <div class="video-container aspect-w-16 aspect-h-9">
+        ${videoInfo.embedHtml}
+      </div>
+      <div class="p-4">
+        <h4 class="font-medium text-gray-800">${videoInfo.title}</h4>
+        <p class="text-xs text-gray-500 mt-1">Channel: ${videoInfo.channelTitle} • ${Number(videoInfo.viewCount).toLocaleString()} views</p>
       </div>
     `;
     

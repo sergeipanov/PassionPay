@@ -534,7 +534,7 @@ function generateEdXPlaceholder(query) {
  */
 function generateDirectCourseHTML(query, course) {
   return `
-    <div class="mb-6 bg-white rounded-md shadow-md overflow-hidden max-w-2xl mx-auto">
+    <div class="h-full bg-white rounded-md shadow-md overflow-hidden">
       <div class="p-3 bg-indigo-50 border-b border-indigo-100">
         <h3 class="text-md font-semibold text-indigo-700">Recommended Courses: ${query}</h3>
         <p class="text-xs text-gray-600">Build skills for this career with professional certificates</p>
@@ -547,9 +547,11 @@ function generateDirectCourseHTML(query, course) {
             <span class="text-xs text-gray-500 ml-2">${course.provider}</span>
           </div>
         </div>
-        <div class="p-3">
-          <h3 class="font-medium text-gray-900 mb-1">${course.title}</h3>
-          <p class="text-xs text-gray-600 mb-2">${course.description}</p>
+        <div class="p-3 min-h-[170px] flex flex-col justify-between">
+          <div>
+            <h3 class="font-medium text-gray-900 mb-1">${course.title}</h3>
+            <p class="text-xs text-gray-600 mb-2">${course.description}</p>
+          </div>
           <div class="mt-2 flex justify-between items-center">
             <span class="text-xs text-gray-500">Format: Self-paced</span>
             <a href="https://www.edx.org/search?q=${encodeURIComponent(course.title)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-3 py-1 border border-indigo-300 text-xs leading-4 font-medium rounded-md text-indigo-700 bg-indigo-50 hover:bg-indigo-100">
@@ -582,20 +584,21 @@ function generateYouTubePlaceholder(query) {
       .slice(0, 3) // Take top 3 keywords
       .join(' ');
     
-    // Create a placeholder that will load the YouTube video via HTMX
+    // Create a placeholder that will load the YouTube video via JavaScript fetch
+    // Adjusted for consistent height in the two-column layout
     return `
-      <div class="mb-6 bg-white rounded-md shadow-md overflow-hidden max-w-2xl mx-auto">
-        <div class="p-3 bg-blue-50 border-b border-blue-100">
-          <h3 class="text-md font-semibold text-blue-700">Day in the Life: ${query}</h3>
-          <p class="text-xs text-gray-600">See what it's like to work in this field</p>
+      <div class="h-full bg-white rounded-md shadow-md overflow-hidden">
+        <div class="p-3 bg-indigo-50 border-b border-indigo-100">
+          <h3 class="text-md font-semibold text-indigo-700">Day in the Life: ${query}</h3>
+          <p class="text-xs text-gray-600">Watch this video to see what it's like to work in this field</p>
         </div>
-        <div id="youtube-video-container" class="p-2" 
+        <div id="youtube-video-container" class="p-2 flex-grow" 
              hx-get="/api/youtube-search?query=${encodeURIComponent(keywords)}" 
              hx-trigger="load"
              hx-indicator=".htmx-indicator">
-          <div class="flex items-center justify-center p-4">
+          <div class="flex items-center justify-center p-4 min-h-[250px]">
             <div class="htmx-indicator">
-              <svg class="animate-spin h-6 w-6 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <svg class="animate-spin h-6 w-6 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
@@ -745,8 +748,21 @@ export default async function handler(req, res) {
     }
     
     // Format results as HTML and include the query input
-    // Order: Query input -> YouTube video -> EdX courses -> Job results
-    let htmlResponse = queryInput + youtubeHtml + edxHtml + formatResults(finalResults);
+    // New order: Query input -> Two-column layout (YouTube + EdX) -> Job results
+    
+    // Create a two-column container for YouTube and EdX content
+    const twoColumnLayout = `
+      <div class="flex flex-col md:flex-row gap-4 mb-6 max-w-6xl mx-auto">
+        <div class="w-full md:w-1/2">
+          ${youtubeHtml}
+        </div>
+        <div class="w-full md:w-1/2">
+          ${edxHtml}
+        </div>
+      </div>
+    `;
+    
+    let htmlResponse = queryInput + twoColumnLayout + formatResults(finalResults);
     
     res.setHeader('Content-Type', 'text/html');
     res.status(200).send(htmlResponse);
