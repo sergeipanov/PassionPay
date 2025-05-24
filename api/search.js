@@ -12,6 +12,14 @@
 import 'dotenv/config';
 import aiplatform, { helpers } from '@google-cloud/aiplatform';
 import { MongoClient } from 'mongodb';
+import fs from 'fs';
+
+// If running on Vercel, use the environment variable directly
+if (process.env.GOOGLE_CREDENTIALS) {
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = '/tmp/gcp-credentials.json';
+  fs.writeFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, process.env.GOOGLE_CREDENTIALS);
+  console.log('Created temporary GCP credentials file for Vercel deployment');
+}
 
 const { PredictionServiceClient } = aiplatform.v1;
 
