@@ -104,6 +104,19 @@ function mapQueryToProfessionalField(query) {
     return 'financial analyst';
   }
   
+  // First look for data + tech/problem combinations as a special case
+  if ((query.includes('data') || query.includes('analytics')) && 
+      (query.includes('tech') || query.includes('problem') || query.includes('solve'))) {
+    return 'data scientist';
+  }
+
+  // Next, look for multiple tech-related keywords
+  const techTerms = ['coding', 'code', 'programming', 'software', 'web', 'data', 'ai', 'tech', 'computer', 'algorithm'];
+  const techCount = techTerms.filter(term => query.includes(term)).length;
+  if (techCount >= 2) {
+    return 'software engineer';
+  }
+  
   // Check if any category keywords are in the query
   for (const [keyword, profession] of Object.entries(categoryMap)) {
     if (query.includes(keyword)) {
@@ -259,23 +272,49 @@ export default async function handler(req, res) {
     // Clean up common typos and normalize the query
     const normalizedQuery = fixTypos(query);
     
-    // Map the query to a relevant professional field
-    const professionalField = mapQueryToProfessionalField(normalizedQuery);
+    // Check if the query is already a job title (passed from search.js)
+    let searchQuery;
+    const jobTitlePattern = /^(senior |junior |lead |chief |principal |staff )?(data scientist|software engineer|developer|analyst|manager|designer|engineer|consultant|architect|specialist|administrator|technician)s?$/i;
     
-    // Construct a standardized search query
-    const searchQuery = `day in the life of ${professionalField}`;
+    if (jobTitlePattern.test(normalizedQuery)) {
+      // If the query is already a job title, use it directly
+      searchQuery = `day in the life of a ${normalizedQuery} tech company`;
+      console.log('Using job title directly for search:', normalizedQuery);
+    } else {
+      // Otherwise map the query to a professional field
+      const professionalField = mapQueryToProfessionalField(normalizedQuery);
+      
+      // Construct a more specific search query based on the professional field
+      if (professionalField === 'data scientist' || normalizedQuery.includes('data scientist')) {
+        searchQuery = 'day in the life of a data scientist tech company';
+      } else if (professionalField.includes('software') || professionalField.includes('developer') || professionalField.includes('programmer')) {
+        searchQuery = 'day in the life of a software engineer tech company';
+      } else if (professionalField.includes('analyst')) {
+        searchQuery = 'day in the life of a business analyst tech';
+      } else {
+        // Default query format
+        searchQuery = `day in the life of ${professionalField}`;
+      }
+    }
     
     console.log(`Searching YouTube for: "${searchQuery}"`);
     
-    // Search for videos
+    // Add keywords to exclude irrelevant videos
+    const blockedTerms = ['-tree', '-gardening', '-landscaping', '-fake', '-workout', '-gym', '-comedy', '-prank'];
+    const enhancedQuery = searchQuery + ' ' + blockedTerms.join(' ');
+    
+    console.log(`Enhanced YouTube query: ${enhancedQuery}`);
+    
+    // Search for videos with additional parameters for better quality results
     const searchResponse = await youtube.search.list({
       part: 'snippet',
-      q: searchQuery,
+      q: enhancedQuery,
       type: 'video',
-      maxResults: 5,
+      maxResults: 15,  // Increased to have more candidates to filter from
       videoEmbeddable: 'true',
       relevanceLanguage: 'en',
-      safeSearch: 'moderate'
+      safeSearch: 'moderate',
+      order: 'relevance'       // Order by relevance
     });
     
     // If no videos found
@@ -284,8 +323,25 @@ export default async function handler(req, res) {
       return res.status(404).send('No relevant videos found');
     }
     
-    // Get video IDs to fetch duration
+    // Get video IDs from search results
     const videoIds = searchResponse.data.items.map(item => item.id.videoId);
+    
+    if (videoIds.length === 0) {
+      return res.status(404).send('No videos found');
+    }
+    
+    // Create a list of relevant keywords based on the job query to filter results
+    const relevantKeywords = [];
+    
+    if (normalizedQuery.includes('data') || searchQuery.includes('data scientist')) {
+      relevantKeywords.push('data', 'scientist', 'analytics', 'analysis');
+    } else if (normalizedQuery.includes('software') || normalizedQuery.includes('developer') || searchQuery.includes('software engineer')) {
+      relevantKeywords.push('software', 'developer', 'engineer', 'coding', 'programming');
+    } else if (normalizedQuery.includes('analyst')) {
+      relevantKeywords.push('analyst', 'analysis', 'business');
+    }
+    
+    console.log('Filtering videos with relevant keywords:', relevantKeywords);
     
     // Get video details to check duration
     const videoResponse = await youtube.videos.list({
@@ -293,24 +349,58 @@ export default async function handler(req, res) {
       id: videoIds.join(',')
     });
     
-    // Filter videos by duration (roughly 3-8 minutes)
-    const videos = videoResponse.data.items.filter(video => {
-      const duration = video.contentDetails.duration;
-      // Parse ISO 8601 duration format (PT#M#S)
-      const match = duration.match(/PT(\d+)M(\d+)S/);
-      if (!match) return false;
+    // Score and filter videos by relevance, title keywords, and duration
+    const videos = videoResponse.data.items.map(video => {
+      // Base score
+      let score = 0;
       
-      const minutes = parseInt(match[1], 10);
-      return minutes >= 3 && minutes <= 8; // Videos between 3-8 minutes
-    });
+      // Score based on title and description relevance
+      const title = video.snippet.title.toLowerCase();
+      const description = video.snippet.description.toLowerCase();
+      
+      // Check for relevant keywords
+      if (relevantKeywords.length > 0) {
+        relevantKeywords.forEach(keyword => {
+          if (title.includes(keyword)) score += 5;
+          if (description.includes(keyword)) score += 2;
+        });
+      }
+      
+      // Check for specific job-related phrases
+      if (title.includes('day in the life')) score += 10;
+      if (title.includes('career') || title.includes('job')) score += 5;
+      
+      // Check for educational content
+      if (title.includes('how to become') || title.includes('tutorial')) score += 3;
+      
+      // Check for unwanted content (reduce score)
+      const unwantedTerms = ['prank', 'funny', 'fake', 'joke', 'gardening', 'tree', 'gym'];
+      unwantedTerms.forEach(term => {
+        if (title.includes(term)) score -= 15;
+      });
+      
+      // Parse duration (prefer 3-8 minute videos)
+      const duration = video.contentDetails.duration;
+      const match = duration.match(/PT(\d+)M(\d+)?S?/);
+      if (match) {
+        const minutes = parseInt(match[1], 10);
+        if (minutes >= 3 && minutes <= 8) score += 5;
+      }
+      
+      return { video, score };
+    })
+    .sort((a, b) => b.score - a.score) // Sort by score (descending)
+    .map(item => item.video);
     
-    // If no videos of appropriate length
+    // If no videos after filtering
     if (videos.length === 0) {
-      // Just use the first video regardless of length
+      // Just use the first video from the original response
       videos.push(videoResponse.data.items[0]);
     }
     
-    // Get the best video (first one after filtering)
+    console.log(`Selected video score: ${videos[0].snippet.title}`);
+    
+    // Get the best video (highest score after filtering)
     const bestVideo = videos[0];
     
     // Return the video information

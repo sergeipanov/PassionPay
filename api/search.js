@@ -301,10 +301,8 @@ function formatResults(results) {
     const workType = result.work_type || 'N/A';
     const score = result.score ? result.score.toFixed(4) : 'N/A';
     
-    // Tag indicating source
-    const sourceTag = result.source === 'linkedin' ? 
-      '<span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">LinkedIn</span>' : 
-      '<span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Tech</span>';
+    // No source tag needed
+    const sourceTag = '';
 
     // Debug: Log the full job object to see all available fields
     console.log(`Job ${result.job_id}: ${result.job_title} - Available fields:`, Object.keys(result));
@@ -693,8 +691,59 @@ export default async function handler(req, res) {
         candidatesPerSource
       );
       
-      // Combine and sort by relevance
+      // Combine results
       let combined = [...linkedinResults, ...techResults];
+      
+      // Check for industry-specific keywords in the query to boost relevant results
+      const healthcareTerms = ['healthcare', 'health', 'medical', 'patient', 'hospital', 'doctor', 'nurse', 'therapy', 'clinical'];
+      const techTerms = ['programming', 'software', 'developer', 'data', 'tech', 'code', 'coding'];
+      const financeTerms = ['finance', 'financial', 'banking', 'investment', 'accounting'];
+      const educationTerms = ['education', 'teaching', 'school', 'teacher', 'student', 'learn'];
+      
+      const queryLower = query.toLowerCase();
+      
+      // Apply industry-specific boosting
+      combined = combined.map(job => {
+        let boostScore = 0;
+        const jobTitle = (job.job_title || '').toLowerCase();
+        const jobDescription = (job.job_description || '').toLowerCase();
+        
+        // Check if query contains healthcare terms
+        if (healthcareTerms.some(term => queryLower.includes(term))) {
+          // Boost jobs with healthcare-related titles or descriptions
+          if (healthcareTerms.some(term => jobTitle.includes(term) || jobDescription.includes(term))) {
+            boostScore += 0.15; // Significant boost for healthcare matches
+            console.log(`Boosting healthcare job: ${job.job_title}`);
+          }
+        }
+        
+        // Check other industries similarly
+        if (techTerms.some(term => queryLower.includes(term))) {
+          if (techTerms.some(term => jobTitle.includes(term) || jobDescription.includes(term))) {
+            boostScore += 0.15;
+          }
+        }
+        
+        if (financeTerms.some(term => queryLower.includes(term))) {
+          if (financeTerms.some(term => jobTitle.includes(term) || jobDescription.includes(term))) {
+            boostScore += 0.15;
+          }
+        }
+        
+        if (educationTerms.some(term => queryLower.includes(term))) {
+          if (educationTerms.some(term => jobTitle.includes(term) || jobDescription.includes(term))) {
+            boostScore += 0.15;
+          }
+        }
+        
+        // Return job with boosted score
+        return {
+          ...job,
+          score: (job.score || 0) + boostScore
+        };
+      });
+      
+      // Sort by boosted relevance score
       combined.sort((a, b) => (b.score || 0) - (a.score || 0));
       
       // Filter by relevance score
@@ -702,13 +751,66 @@ export default async function handler(req, res) {
       finalResults = relevantResults.slice(0, searchLimit);
     }
     
-    // Sort by salary (descending)
+    // Ensure we have industry diversity in the results - identify job categories
+    const jobCategories = {};
+    finalResults.forEach(job => {
+      const title = job.job_title?.toLowerCase() || '';
+      let category = 'other';
+      
+      // Identify the job category based on title or description
+      if (/health|medical|patient|nurse|doctor|clinical|care|therapy|hospital/.test(title)) {
+        category = 'healthcare';
+      } else if (/tech|software|developer|engineer|data|scientist|programming/.test(title)) {
+        category = 'tech';
+      } else if (/finance|financial|accounting|investment|banking/.test(title)) {
+        category = 'finance';
+      } else if (/teach|education|school|professor|instructor/.test(title)) {
+        category = 'education';
+      } else if (/marketing|sales|business|manager|director/.test(title)) {
+        category = 'business';
+      }
+      
+      job.category = category;
+      jobCategories[category] = (jobCategories[category] || 0) + 1;
+    });
+    
+    console.log('Job categories found:', jobCategories);
+    
+    // Check if query contains industry-specific terms
+    const queryLower = query.toLowerCase();
+    const specificIndustry = queryLower.includes('healthcare') || queryLower.includes('health') || 
+                            queryLower.includes('tech') || queryLower.includes('finance') || 
+                            queryLower.includes('education');
+    
+    // Balanced sort algorithm that considers both salary and relevance
     finalResults.sort((a, b) => {
       const getSalary = (item) => {
         return item.salary_max || item.salary_median || item.salary_min || 
                (item.salary_in_usd ? parseFloat(item.salary_in_usd) : 0);
       };
-      return getSalary(b) - getSalary(a);
+      
+      // Calculate normalized salary score (0-1)
+      const salaryA = getSalary(a);
+      const salaryB = getSalary(b);
+      const maxSalary = Math.max(...finalResults.map(item => getSalary(item)));
+      const normalizedSalaryA = salaryA / maxSalary;
+      const normalizedSalaryB = salaryB / maxSalary;
+      
+      // If the query specifically mentions an industry, prioritize category matches
+      if (specificIndustry) {
+        // Check if either job matches the industry mentioned in the query
+        const queryMatchesA = queryLower.includes(a.category);
+        const queryMatchesB = queryLower.includes(b.category);
+        
+        if (queryMatchesA && !queryMatchesB) return -1;
+        if (!queryMatchesA && queryMatchesB) return 1;
+      }
+      
+      // Calculate combined score: relevance (60%) + salary (40%)
+      const scoreA = (a.score || 0) * 0.6 + normalizedSalaryA * 0.4;
+      const scoreB = (b.score || 0) * 0.6 + normalizedSalaryB * 0.4;
+      
+      return scoreB - scoreA;
     });
     
     // Add a hidden input to store the current query for filter buttons
@@ -718,7 +820,14 @@ export default async function handler(req, res) {
     let youtubeHtml = '';
     if (finalResults.length > 0) {
       try {
-        youtubeHtml = generateYouTubePlaceholder(query);
+        // Extract job title from the top result for more relevant YouTube videos
+        const topJobTitle = finalResults[0].job_title || '';
+        
+        // Use the job title if available, otherwise use the original query
+        const videoSearchTerm = topJobTitle ? topJobTitle : query;
+        console.log(`Using "${videoSearchTerm}" for YouTube search based on top job result`);
+        
+        youtubeHtml = generateYouTubePlaceholder(videoSearchTerm);
       } catch (youtubeError) {
         console.error('Error adding YouTube video placeholder:', youtubeError);
         // Continue without YouTube video
