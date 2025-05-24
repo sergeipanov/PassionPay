@@ -10,9 +10,17 @@ import fs from 'fs';
 
 // If running on Vercel, use the environment variable directly
 if (process.env.GOOGLE_CREDENTIALS) {
-  process.env.GOOGLE_APPLICATION_CREDENTIALS = '/tmp/gcp-credentials.json';
-  fs.writeFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, process.env.GOOGLE_CREDENTIALS);
-  console.log('Created temporary GCP credentials file for Vercel deployment');
+  try {
+    // For Vercel, we need to parse the credentials JSON string
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    
+    // Instead of writing to a file, directly set the credentials
+    process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON = JSON.stringify(credentials);
+    
+    console.log('Using GCP credentials from environment variable');
+  } catch (error) {
+    console.error('Error parsing GOOGLE_CREDENTIALS:', error.message);
+  }
 }
 
 /**

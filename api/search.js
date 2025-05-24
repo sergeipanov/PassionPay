@@ -16,9 +16,22 @@ import fs from 'fs';
 
 // If running on Vercel, use the environment variable directly
 if (process.env.GOOGLE_CREDENTIALS) {
-  process.env.GOOGLE_APPLICATION_CREDENTIALS = '/tmp/gcp-credentials.json';
-  fs.writeFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, process.env.GOOGLE_CREDENTIALS);
-  console.log('Created temporary GCP credentials file for Vercel deployment');
+  try {
+    // For Vercel, we need to parse the credentials JSON string
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    
+    // Instead of writing to a file, directly set the credentials
+    process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON = JSON.stringify(credentials);
+    
+    // Set project ID from credentials if not explicitly set
+    if (!process.env.GCP_PROJECT_ID && credentials.project_id) {
+      process.env.GCP_PROJECT_ID = credentials.project_id;
+    }
+    
+    console.log('Using GCP credentials from environment variable');
+  } catch (error) {
+    console.error('Error parsing GOOGLE_CREDENTIALS:', error.message);
+  }
 }
 
 const { PredictionServiceClient } = aiplatform.v1;
@@ -63,10 +76,23 @@ async function connectToMongoDB() {
 let predictionServiceClient;
 try {
   if (PROJECT_ID) {
-    predictionServiceClient = new PredictionServiceClient({
+    // Client options for authentication
+    const clientOptions = {
       apiEndpoint: `${LOCATION}-aiplatform.googleapis.com`
-    });
-    console.log('PredictionServiceClient initialized globally.');
+    };
+    
+    // Add credentials if available in environment
+    if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+      try {
+        clientOptions.credentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+        console.log('Using credentials from environment variable');
+      } catch (credError) {
+        console.error('Error parsing credentials JSON:', credError);
+      }
+    }
+    
+    predictionServiceClient = new PredictionServiceClient(clientOptions);
+    console.log('PredictionServiceClient initialized globally with project:', PROJECT_ID);
   } else {
     console.error('GCP_PROJECT_ID environment variable is not set.');
   }
