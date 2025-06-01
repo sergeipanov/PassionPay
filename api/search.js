@@ -313,100 +313,334 @@ function formatResults(results) {
   return html;
 }
 
-// Generate EdX course recommendations
-function generateEdXPlaceholder(query) {
+// Generate university program recommendations
+function generateUniversityPrograms(query, topJobs) {
+  const programs = [];
+  
+  // Analyze job titles and descriptions to determine relevant fields
+  const jobTitles = topJobs.map(job => job.job_title?.toLowerCase() || '').join(' ');
+  const jobDescriptions = topJobs.map(job => job.job_description?.toLowerCase() || '').join(' ');
+  const combinedText = jobTitles + ' ' + jobDescriptions;
+  
+  // Healthcare field detection
+  if (combinedText.includes('health') || combinedText.includes('medical') || combinedText.includes('nurse') || combinedText.includes('care')) {
+    programs.push({
+      title: 'Bachelor of Science in Healthcare Administration',
+      school: 'Arizona State University Online',
+      type: 'Bachelor\'s Degree',
+      duration: '4 years',
+      format: 'Online',
+      description: 'Prepare for leadership roles in healthcare organizations, hospitals, and clinics.',
+      searchQuery: 'healthcare administration degree online'
+    });
+    
+    programs.push({
+      title: 'Master of Public Health (MPH)',
+      school: 'Johns Hopkins Bloomberg School',
+      type: 'Master\'s Degree',
+      duration: '2 years',
+      format: 'Online/Hybrid',
+      description: 'Advanced degree focusing on population health, epidemiology, and health policy.',
+      searchQuery: 'master public health MPH online'
+    });
+  }
+  
+  // Technology field detection
+  if (combinedText.includes('software') || combinedText.includes('data') || combinedText.includes('engineer') || combinedText.includes('tech')) {
+    programs.push({
+      title: 'Bachelor of Science in Computer Science',
+      school: 'University of Maryland Global Campus',
+      type: 'Bachelor\'s Degree',
+      duration: '4 years',
+      format: 'Online',
+      description: 'Comprehensive program covering programming, algorithms, and software development.',
+      searchQuery: 'computer science degree online accredited'
+    });
+    
+    programs.push({
+      title: 'Master of Science in Data Science',
+      school: 'University of California, Berkeley',
+      type: 'Master\'s Degree',
+      duration: '20 months',
+      format: 'Online',
+      description: 'Advanced analytics, machine learning, and big data technologies.',
+      searchQuery: 'data science masters degree online UC Berkeley'
+    });
+  }
+  
+  // Business field detection
+  if (combinedText.includes('business') || combinedText.includes('manager') || combinedText.includes('finance') || combinedText.includes('marketing')) {
+    programs.push({
+      title: 'Master of Business Administration (MBA)',
+      school: 'Penn State World Campus',
+      type: 'Master\'s Degree',
+      duration: '2 years',
+      format: 'Online',
+      description: 'Comprehensive business education with specializations in finance, marketing, and strategy.',
+      searchQuery: 'MBA online penn state accredited'
+    });
+    
+    programs.push({
+      title: 'Bachelor of Science in Business Administration',
+      school: 'Southern New Hampshire University',
+      type: 'Bachelor\'s Degree',
+      duration: '4 years',
+      format: 'Online',
+      description: 'Foundational business skills with concentrations in various business areas.',
+      searchQuery: 'business administration degree online SNHU'
+    });
+  }
+  
+  // Education field detection
+  if (combinedText.includes('teach') || combinedText.includes('education') || combinedText.includes('school') || combinedText.includes('student')) {
+    programs.push({
+      title: 'Master of Education (M.Ed.)',
+      school: 'Arizona State University',
+      type: 'Master\'s Degree',
+      duration: '15 months',
+      format: 'Online',
+      description: 'Advanced teaching methods, curriculum design, and educational leadership.',
+      searchQuery: 'master of education degree online ASU'
+    });
+  }
+  
+  // Return top 2 most relevant programs
+  return programs.slice(0, 2);
+}
+
+// Generate certifications
+function generateCertifications(query, topJobs) {
+  const certifications = [];
+  
+  const jobTitles = topJobs.map(job => job.job_title?.toLowerCase() || '').join(' ');
+  const jobDescriptions = topJobs.map(job => job.job_description?.toLowerCase() || '').join(' ');
+  const combinedText = jobTitles + ' ' + jobDescriptions;
+  
+  // Healthcare Certifications
+  if (combinedText.includes('health') || combinedText.includes('medical') || combinedText.includes('care')) {
+    certifications.push({
+      title: 'Certified Healthcare Administrative Professional (cHAP)',
+      organization: 'National Association of Healthcare Access Management',
+      type: 'Professional Certification',
+      duration: '3-6 months prep',
+      cost: '$300-500',
+      description: 'Industry-recognized certification for healthcare administration professionals.',
+      searchQuery: 'cHAP certification healthcare administration'
+    });
+  }
+  
+  // Technology Certifications
+  if (combinedText.includes('software') || combinedText.includes('data') || combinedText.includes('cloud') || combinedText.includes('tech')) {
+    certifications.push({
+      title: 'AWS Certified Solutions Architect',
+      organization: 'Amazon Web Services',
+      type: 'Cloud Certification',
+      duration: '3-6 months prep',
+      cost: '$150 exam fee',
+      description: 'Industry-standard certification for cloud architecture and AWS services.',
+      searchQuery: 'AWS solutions architect certification'
+    });
+    
+    certifications.push({
+      title: 'Google Data Analytics Professional Certificate',
+      organization: 'Google Career Certificates',
+      type: 'Professional Certificate',
+      duration: '3-6 months',
+      cost: '$39/month (Coursera)',
+      description: 'Entry-level data analytics skills and tools certification.',
+      searchQuery: 'Google data analytics certificate Coursera'
+    });
+  }
+  
+  // Business Certifications
+  if (combinedText.includes('business') || combinedText.includes('finance') || combinedText.includes('project') || combinedText.includes('manager')) {
+    certifications.push({
+      title: 'Project Management Professional (PMP)',
+      organization: 'Project Management Institute',
+      type: 'Professional Certification',
+      duration: '3-6 months prep',
+      cost: '$555 exam fee',
+      description: 'Gold standard certification for project management professionals.',
+      searchQuery: 'PMP certification project management'
+    });
+  }
+  
+  // Marketing Certifications
+  if (combinedText.includes('marketing') || combinedText.includes('sales') || combinedText.includes('digital')) {
+    certifications.push({
+      title: 'Google Ads Certification',
+      organization: 'Google Skillshop',
+      type: 'Digital Marketing Certification',
+      duration: '1-2 months',
+      cost: 'Free',
+      description: 'Official Google certification for advertising and digital marketing.',
+      searchQuery: 'Google Ads certification free'
+    });
+  }
+  
+  return certifications.slice(0, 2); // Return top 2 most relevant
+}
+
+// Generate compact education HTML
+function generateEducationHTML(query, topJobs) {
+  const programs = generateUniversityPrograms(query, topJobs);
+  
+  if (programs.length === 0) {
+    programs.push({
+      title: 'Bachelor of Science in Business Administration',
+      school: 'Southern New Hampshire University',
+      type: 'Bachelor\'s Degree',
+      duration: '4 years',
+      format: 'Online',
+      description: 'Flexible degree program with various concentration options.',
+      searchQuery: 'business administration degree online'
+    });
+  }
+  
+  let html = `
+    <div class="bg-white rounded-md shadow-md overflow-hidden">
+      <div class="p-2 bg-purple-50 border-b border-purple-100">
+        <h3 class="text-sm font-semibold text-purple-700">Education Pathways</h3>
+        <p class="text-xs text-gray-600">Degree programs for this field</p>
+      </div>
+      <div class="p-2 space-y-2 max-h-[200px] overflow-y-auto">
+  `;
+  
+  programs.forEach(program => {
+    html += `
+      <div class="border border-gray-200 rounded p-2 hover:border-purple-200 transition-colors">
+        <div class="flex justify-between items-start mb-1">
+          <span class="text-xs font-medium px-1 py-0.5 rounded-full ${
+            program.type.includes('Bachelor') ? 'bg-blue-100 text-blue-800' : 
+            program.type.includes('Master') ? 'bg-green-100 text-green-800' :
+            'bg-orange-100 text-orange-800'
+          }">${program.type}</span>
+          <span class="text-xs text-gray-500">${program.format}</span>
+        </div>
+        
+        <h4 class="font-medium text-gray-900 text-xs mb-1">${program.title}</h4>
+        <p class="text-xs text-gray-600 mb-1">${program.school}</p>
+        <p class="text-xs text-gray-600 mb-1 line-clamp-2">${program.description}</p>
+        
+        <div class="flex justify-between items-center">
+          <span class="text-xs text-gray-500">${program.duration}</span>
+          <a href="https://www.google.com/search?q=${encodeURIComponent(program.searchQuery)}" 
+             target="_blank" 
+             rel="noopener noreferrer" 
+             class="inline-flex items-center px-2 py-1 border border-purple-300 text-xs leading-3 font-medium rounded-md text-purple-700 bg-purple-50 hover:bg-purple-100">
+            Find Program
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-2 w-2 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+        </div>
+      </div>
+    `;
+  });
+  
+  html += `
+      </div>
+      <div class="p-1 bg-gray-50 border-t text-center">
+        <a href="https://www.google.com/search?q=${encodeURIComponent(query + ' degree programs online')}" 
+           target="_blank" 
+           class="text-xs text-purple-600 hover:underline">
+          Explore more programs →
+        </a>
+      </div>
+    </div>
+  `;
+  
+  return html;
+}
+
+// Generate compact certification HTML
+function generateCertificationHTML(query, topJobs) {
+  const certifications = generateCertifications(query, topJobs);
+  
+  if (certifications.length === 0) {
+    certifications.push({
+      title: 'Google Career Certificate Program',
+      organization: 'Google Career Certificates',
+      type: 'Professional Certificate',
+      duration: '3-6 months',
+      cost: '$39/month',
+      description: 'Job-ready skills in high-growth fields.',
+      searchQuery: 'Google career certificates'
+    });
+  }
+  
+  let html = `
+    <div class="bg-white rounded-md shadow-md overflow-hidden">
+      <div class="p-2 bg-emerald-50 border-b border-emerald-100">
+        <h3 class="text-sm font-semibold text-emerald-700">Professional Certifications</h3>
+        <p class="text-xs text-gray-600">Industry credentials to boost your profile</p>
+      </div>
+      <div class="p-2 space-y-2 max-h-[200px] overflow-y-auto">
+  `;
+  
+  certifications.forEach(cert => {
+    const isFree = cert.cost.toLowerCase().includes('free');
+    const costColor = isFree ? 'text-green-600' : 'text-gray-600';
+    
+    html += `
+      <div class="border border-gray-200 rounded p-2 hover:border-emerald-200 transition-colors">
+        <div class="flex justify-between items-start mb-1">
+          <span class="text-xs font-medium px-1 py-0.5 rounded-full ${
+            cert.type.includes('Professional') ? 'bg-blue-100 text-blue-800' :
+            cert.type.includes('Cloud') ? 'bg-purple-100 text-purple-800' :
+            'bg-green-100 text-green-800'
+          }">${cert.type}</span>
+          <span class="text-xs ${costColor} font-medium">${cert.cost}</span>
+        </div>
+        
+        <h4 class="font-medium text-gray-900 text-xs mb-1">${cert.title}</h4>
+        <p class="text-xs text-gray-600 mb-1">${cert.organization}</p>
+        <p class="text-xs text-gray-600 mb-1 line-clamp-2">${cert.description}</p>
+        
+        <div class="flex justify-between items-center">
+          <span class="text-xs text-gray-500">${cert.duration}</span>
+          <a href="https://www.google.com/search?q=${encodeURIComponent(cert.searchQuery)}" 
+             target="_blank" 
+             rel="noopener noreferrer" 
+             class="inline-flex items-center px-2 py-1 border border-emerald-300 text-xs leading-3 font-medium rounded-md text-emerald-700 bg-emerald-50 hover:bg-emerald-100">
+            Learn More
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-2 w-2 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+        </div>
+      </div>
+    `;
+  });
+  
+  html += `
+      </div>
+    </div>
+  `;
+  
+  return html;
+}
+
+// Main education content generator
+function generateEducationContent(query, topJobs) {
   try {
     if (!query || typeof query !== 'string' || query.trim() === '') {
       return '';
     }
     
-    const keywords = query.toLowerCase()
-      .replace(/and/g, ' ')
-      .split(' ')
-      .filter(word => word.length > 2)
-      .slice(0, 3)
-      .join(' ');
+    const universityHTML = generateEducationHTML(query, topJobs);
+    const certificationHTML = generateCertificationHTML(query, topJobs);
     
-    const isFinanceQuery = keywords.includes('stock') || 
-                          keywords.includes('financ') || 
-                          keywords.includes('invest') || 
-                          keywords.includes('trading') || 
-                          keywords.includes('money') || 
-                          keywords.includes('accounting');
-    
-    if (isFinanceQuery) {
-      return generateDirectCourseHTML(query, {
-        title: 'Finance for Everyone: Smart Tools for Decision-Making',
-        provider: 'University of Michigan',
-        type: 'Course',
-        description: 'Learn how to think clearly about important financial decisions and improve your financial literacy.',
-        startDate: 'Self-paced'
-      });
-    }
-    
-    const isTechQuery = keywords.includes('software') || 
-                       keywords.includes('develop') || 
-                       keywords.includes('code') || 
-                       keywords.includes('program') || 
-                       keywords.includes('tech') || 
-                       keywords.includes('computer');
-    
-    if (isTechQuery) {
-      return generateDirectCourseHTML(query, {
-        title: 'Computer Science Essentials for Software Development',
-        provider: 'University of Pennsylvania',
-        type: 'Professional Certificate Program',
-        description: 'Learn the essential components of software development, including algorithms, data structures, and object-oriented design.',
-        startDate: 'Self-paced'
-      });
-    }
-    
-    return generateDirectCourseHTML(query, {
-      title: 'Data Science and Analytics Essentials',
-      provider: 'IBM',
-      type: 'Professional Certificate',
-      description: 'Learn fundamental data science and analytics skills applicable to many career paths and industries.',
-      startDate: 'Self-paced'
-    });
+    return `
+      <div class="space-y-3">
+        ${universityHTML}
+        ${certificationHTML}
+      </div>
+    `;
   } catch (error) {
-    console.error('Error generating EdX placeholder:', error);
+    console.error('Error generating education content:', error);
     return '';
   }
-}
-
-function generateDirectCourseHTML(query, course) {
-  return `
-    <div class="h-full bg-white rounded-md shadow-md overflow-hidden">
-      <div class="p-3 bg-indigo-50 border-b border-indigo-100">
-        <h3 class="text-md font-semibold text-indigo-700">Recommended Courses: ${query}</h3>
-        <p class="text-xs text-gray-600">Build skills for this career with professional certificates</p>
-      </div>
-      
-      <div class="edx-course bg-white border-gray-200 overflow-hidden">
-        <div class="p-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-          <div>
-            <span class="text-xs font-medium px-2 py-1 rounded-full ${course.type.toLowerCase().includes('program') ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}">${course.type}</span>
-            <span class="text-xs text-gray-500 ml-2">${course.provider}</span>
-          </div>
-        </div>
-        <div class="p-3 min-h-[170px] flex flex-col justify-between">
-          <div>
-            <h3 class="font-medium text-gray-900 mb-1">${course.title}</h3>
-            <p class="text-xs text-gray-600 mb-2">${course.description}</p>
-          </div>
-          <div class="mt-2 flex justify-between items-center">
-            <span class="text-xs text-gray-500">Format: Self-paced</span>
-            <a href="https://www.edx.org/search?q=${encodeURIComponent(course.title)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-3 py-1 border border-indigo-300 text-xs leading-4 font-medium rounded-md text-indigo-700 bg-indigo-50 hover:bg-indigo-100">
-              Find on EdX
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
 }
 
 // Generate YouTube video placeholder
@@ -505,16 +739,16 @@ export default async function handler(req, res) {
       return scoreB - scoreA;
     });
     
-    // Generate YouTube and EdX content
+    // Generate YouTube and Education content
     let youtubeHtml = '';
-    let edxHtml = '';
+    let educationHtml = '';
     
     if (finalResults.length > 0) {
       try {
         const topJobTitle = finalResults[0].job_title || '';
         const videoSearchTerm = topJobTitle ? topJobTitle : query;
         youtubeHtml = generateYouTubePlaceholder(videoSearchTerm);
-        edxHtml = generateEdXPlaceholder(query);
+        educationHtml = generateEducationContent(query, finalResults);
       } catch (error) {
         console.error('Error generating content:', error);
       }
@@ -527,7 +761,7 @@ export default async function handler(req, res) {
           ${youtubeHtml}
         </div>
         <div class="w-full md:w-1/2">
-          ${edxHtml}
+          ${educationHtml}
         </div>
       </div>
     `;
