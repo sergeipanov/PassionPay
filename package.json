@@ -2,10 +2,13 @@
   "name": "passionpay",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "packageManager": "npm@10.9.2",
   "scripts": {
     "dev": "npx tailwindcss -i ./public/input.css -o ./public/style.css --watch",
-    "build": "npx tailwindcss -i ./public/input.css -o ./public/style.css --minify"
+    "build": "npx tailwindcss -i ./public/input.css -o ./public/style.css --minify",
+    "start": "node server.js",
+    "deploy": "gcloud run deploy"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.3"
@@ -17,6 +20,7 @@
     "csv-parser": "^3.2.0",
     "dotenv": "^16.5.0",
     "googleapis": "^149.0.0",
-    "mongodb": "^6.16.0"
+    "mongodb": "^6.16.0",
+    "express": "^4.19.2"
   }
 }
