@@ -25,6 +25,8 @@ if (process.env.GOOGLE_CREDENTIALS) {
 
 const { PredictionServiceClient } = aiplatform.v1;
 
+// Log GCP_PROJECT_ID before it's used for PredictionServiceClient
+
 // Configuration 
 const PROJECT_ID = process.env.GCP_PROJECT_ID;
 const LOCATION = process.env.GCP_LOCATION || 'us-central1';
@@ -68,74 +70,128 @@ try {
 
 // MongoDB connection
 async function connectToMongoDB() {
+  console.log('Attempting to connect to MongoDB...');
+  if (!MONGODB_URI) {
+    console.error('MongoDB connection error: MONGODB_URI is not set in environment variables.');
+    throw new Error('MONGODB_URI is not set.');
+  }
   try {
     const client = new MongoClient(MONGODB_URI);
     await client.connect();
-    console.log('Connected to MongoDB Atlas');
+    console.log(`Successfully connected to MongoDB Atlas, database: ${MONGO_DATABASE_NAME}`);
     const db = client.db(MONGO_DATABASE_NAME);
     return { client, db };
   } catch (error) {
-    console.error('MongoDB connection error:', error);
-    throw error;
+    console.error('MongoDB connection error details:', {
+      message: error.message,
+      name: error.name,
+      // stack: error.stack, // Stack can be too verbose for initial logs
+      code: error.code, // For MongoServerError
+      errorLabels: error.errorLabels // For more specific Mongo errors
+    });
+    if (error.name === 'MongoNetworkError') {
+        console.error('Hint: This might be a network connectivity issue (e.g., firewall, incorrect MONGODB_URI hostname/port) or the database server is down.');
+    } else if (error.name === 'MongoParseError') {
+        console.error('Hint: This might be an issue with the MONGODB_URI format. Ensure it starts with mongodb:// or mongodb+srv:// and is correctly structured.');
+    } else if (error.code === 8000 || (error.errorLabels && error.errorLabels.includes('AuthenticationFailed'))) { // AuthenticationFailed
+        console.error('Hint: MongoDB authentication failed. Check username/password in MONGODB_URI or IP access list settings in Atlas.');
+    }
+    throw error; // Re-throw the original error to be caught by the handler
   }
 }
 
 // Generate embeddings from Vertex AI
 async function getEmbedding(textToEmbed) {
-  if (!textToEmbed || textToEmbed.trim() === '') {
-    console.error('getEmbedding: No text provided to embed.');
+  console.log(`getEmbedding: Called with text: "${textToEmbed}"`);
+  if (!textToEmbed || String(textToEmbed).trim() === '') { // Ensure textToEmbed is treated as string for trim
+    console.error('getEmbedding: No valid text provided to embed.');
     return null;
+  }
+  if (!predictionServiceClient) {
+    console.error('getEmbedding: CRITICAL - PredictionServiceClient is not initialized.');
+    throw new Error('PredictionServiceClient not initialized. Cannot generate embedding.');
+  }
+  if (!PROJECT_ID || !LOCATION || !PUBLISHER || !MODEL_ID) {
+    console.error(`getEmbedding: CRITICAL - Missing GCP configuration. PROJECT_ID: ${PROJECT_ID}, LOCATION: ${LOCATION}, PUBLISHER: ${PUBLISHER}, MODEL_ID: ${MODEL_ID}`);
+    throw new Error('Missing GCP configuration for embeddings. Cannot generate embedding.');
   }
 
   try {
     const endpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/publishers/${PUBLISHER}/models/${MODEL_ID}`;
+    console.log(`getEmbedding: Using Vertex AI endpoint: ${endpoint}`);
     
     const instances = [
       helpers.toValue({
-        content: textToEmbed,
-        task_type: "RETRIEVAL_QUERY"
+        content: String(textToEmbed), // Ensure content is string
+        task_type: "RETRIEVAL_QUERY" // This should be for querying, RETRIEVAL_DOCUMENT is for indexing docs
       }),
     ];
     
     const parameters = helpers.toValue({
-      autoTruncate: true
+      autoTruncate: true // This is a good default
     });
     
     const request = { endpoint, instances, parameters };
 
-    console.log('Sending embedding request to Vertex AI...');
-    const [response] = await predictionServiceClient.predict(request);
-    console.log('Got response from Vertex AI');
+    console.log('getEmbedding: Sending embedding request to Vertex AI. Request:', JSON.stringify(request, null, 2));
+    const [vertexResponse] = await predictionServiceClient.predict(request); // Renamed to avoid conflict
+    console.log('getEmbedding: Raw response from Vertex AI:', JSON.stringify(vertexResponse, null, 2));
     
-    if (response && response.predictions && response.predictions.length > 0) {
-      const prediction = helpers.fromValue(response.predictions[0]);
+    if (vertexResponse && vertexResponse.predictions && vertexResponse.predictions.length > 0) {
+      const prediction = helpers.fromValue(vertexResponse.predictions[0]);
+      console.log('getEmbedding: Parsed prediction object from Vertex AI:', JSON.stringify(prediction, null, 2));
       
-      // Find embedding array in response
-      const findEmbedding = (obj) => {
-        if (!obj || typeof obj !== 'object') return null;
-        for (const key in obj) {
-          if (Array.isArray(obj[key]) && obj[key].length >= 768) {
-            console.log(`Found potential embedding array in field '${key}' with ${obj[key].length} elements`);
-            return obj[key];
-          } else if (typeof obj[key] === 'object') {
-            const result = findEmbedding(obj[key]);
-            if (result) return result;
+      // Simplified embedding extraction based on common structure for text-embedding models
+      if (prediction && prediction.embeddings && prediction.embeddings.values && Array.isArray(prediction.embeddings.values)) {
+        console.log(`getEmbedding: Extracted embedding array directly from prediction.embeddings.values with ${prediction.embeddings.values.length} elements.`);
+        return prediction.embeddings.values.map(v => Number(v));
+      } else {
+        // Fallback to the original findEmbedding logic if direct path fails, with more logging
+        console.warn('getEmbedding: Could not find embedding in prediction.embeddings.values. Falling back to recursive search.');
+        const findEmbeddingRecursive = (obj, path = 'prediction') => {
+          if (!obj || typeof obj !== 'object') return null;
+          // console.log(`getEmbedding.findEmbeddingRecursive: Searching in path: ${path}`); // Can be too verbose
+          for (const key in obj) {
+            const currentPath = `${path}.${key}`;
+            if (Array.isArray(obj[key]) && obj[key].length >= 100) { // Generic length check, 768 is common
+              console.log(`getEmbedding.findEmbeddingRecursive: Found potential embedding array in field '${currentPath}' with ${obj[key].length} elements.`);
+              return obj[key];
+            } else if (typeof obj[key] === 'object') {
+              const result = findEmbeddingRecursive(obj[key], currentPath);
+              if (result) return result;
+            }
           }
+          return null;
+        };
+        
+        const embeddingArray = findEmbeddingRecursive(prediction);
+        if (embeddingArray) {
+          console.log('getEmbedding: Successfully extracted embedding array using recursive search.');
+          return embeddingArray.map(v => Number(v));
+        } else {
+          console.error('getEmbedding: No valid embeddings array found in prediction response even after recursive search. Prediction object:', JSON.stringify(prediction, null, 2));
         }
-        return null;
-      };
-      
-      const embeddingArray = findEmbedding(prediction);
-      if (embeddingArray) {
-        return embeddingArray.map(v => Number(v));
       }
+    } else {
+      console.error('getEmbedding: No predictions found in Vertex AI response or response structure is unexpected. Full response:', JSON.stringify(vertexResponse, null, 2));
     }
 
-    console.error('No valid embeddings found in response');
-    return null;
+    return null; // Explicitly return null if no embedding found
   } catch (error) {
-    console.error('Error generating embedding:', error);
-    throw error;
+    console.error('getEmbedding: Error during Vertex AI API call:', {
+        message: error.message,
+        name: error.name,
+        // stack: error.stack, // Stack can be too verbose
+        code: error.code, // gRPC status code
+        details: error.details // Specific error details from API
+    });
+    // More specific error handling for Vertex AI
+    if (error.code === 7) { // PERMISSION_DENIED
+        console.error('Hint: Vertex AI Permission Denied. Check IAM roles for the Cloud Run service account (e.g., "Vertex AI User").');
+    } else if (error.code === 3 || error.code === 5) { // INVALID_ARGUMENT or NOT_FOUND (e.g. model name)
+        console.error('Hint: Vertex AI Invalid Argument or Not Found. Check model name, project ID, location, or request payload format.');
+    }
+    throw error; // Re-throw to be caught by handler
   }
 }
 
@@ -694,7 +750,35 @@ export default async function handler(req, res) {
     return res.status(500).send('Server error: AI service unavailable');
   }
 
+  console.log('--- PassionPay API /api/search ---');
   const { query, remote, minSalary } = req.query;
+  console.log(`Received search query: "${query}", remote: ${remote}, minSalary: ${minSalary}`);
+  console.log('Environment Variables Check:');
+  console.log(`GCP_PROJECT_ID: ${process.env.GCP_PROJECT_ID}`);
+  console.log(`GCP_LOCATION: ${process.env.GCP_LOCATION}`);
+  console.log(`GCP_EMBEDDING_MODEL: ${process.env.GCP_EMBEDDING_MODEL}`);
+  console.log(`MONGODB_URI (first 10 chars): ${process.env.MONGODB_URI ? process.env.MONGODB_URI.substring(0, 10) + '...' : 'Not set'}`);
+  console.log(`MONGO_DATABASE_NAME: ${MONGO_DATABASE_NAME}`);
+  console.log(`COLLECTION_NAME: ${COLLECTION_NAME}`);
+  console.log(`VECTOR_INDEX_NAME: ${VECTOR_INDEX_NAME}`);
+  console.log(`EMBEDDING_FIELD_NAME: ${EMBEDDING_FIELD_NAME}`);
+  console.log(`GOOGLE_CREDENTIALS set: ${!!process.env.GOOGLE_CREDENTIALS}`);
+  console.log(`GOOGLE_APPLICATION_CREDENTIALS_JSON set: ${!!process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON}`);
+
+  if (!PROJECT_ID) {
+    console.error('CRITICAL: GCP_PROJECT_ID is not defined. Aborting search.');
+    return res.status(500).json({ error: 'Server configuration error: GCP_PROJECT_ID missing.' });
+  }
+  if (!MONGODB_URI) {
+    console.error('CRITICAL: MONGODB_URI is not defined. Aborting search.');
+    return res.status(500).json({ error: 'Server configuration error: MONGODB_URI missing.' });
+  }
+  if (!predictionServiceClient) {
+    console.error('CRITICAL: PredictionServiceClient is not initialized. Aborting search.');
+    return res.status(500).json({ error: 'Server configuration error: PredictionServiceClient failed to initialize.' });
+  }
+  console.log('Initial checks passed. Proceeding with search logic.');
+
 
   if (!query) {
     return res.status(400).send('Please provide a search query');
